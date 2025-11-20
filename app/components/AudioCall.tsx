@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Peer, MediaConnection } from "peerjs";
 import { Phone, PhoneOff, Mic, MicOff, Copy, Check } from "lucide-react";
+import Image from "next/image";
 
 export default function AudioCall() {
   const [peerId, setPeerId] = useState<string>("");
@@ -124,7 +125,16 @@ export default function AudioCall() {
 
   return (
     <div className="flex flex-col items-center w-full max-w-md p-6 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800">
-      <h2 className="text-2xl font-bold mb-6 text-zinc-900 dark:text-zinc-100">Audio Call Prototype</h2>
+      <div className="w-full flex items-center justify-between mb-6">
+        <Image 
+          src="/logo.png" 
+          alt="Logo" 
+          width={40} 
+          height={40} 
+          className="rounded-lg"
+        />
+        <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Audio Call Prototype</h2>
+      </div>
 
       {/* Peer ID Section */}
       <div className="w-full mb-8 p-4 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800">
@@ -153,12 +163,12 @@ export default function AudioCall() {
               placeholder="Enter Remote Peer ID"
               value={remotePeerIdInput}
               onChange={(e) => setRemotePeerIdInput(e.target.value)}
-              className="w-full p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="w-full p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 outline-none transition-all"
             />
             <button
               onClick={startCall}
               disabled={!remotePeerIdInput || !peerId}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
+              className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <Phone size={20} />
               Call Peer
