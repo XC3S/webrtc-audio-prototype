@@ -21,7 +21,18 @@ export default function AudioCall() {
     // Initialize PeerJS
     const initPeer = async () => {
       try {
-        const peer = new Peer();
+        // Fetch ICE servers from our API route
+        const response = await fetch("/api/turn-credentials");
+        const data = await response.json();
+        const iceServers = data.iceServers || [
+          { urls: "stun:stun.l.google.com:19302" },
+        ];
+
+        const peer = new Peer({
+          config: {
+            iceServers: iceServers,
+          },
+        });
         
         peer.on("open", (id) => {
           console.log("My peer ID is: " + id);
