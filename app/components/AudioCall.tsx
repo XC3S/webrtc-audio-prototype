@@ -1,126 +1,84 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Peer, MediaConnection } from "peerjs";
 import { Phone, PhoneOff, Mic, MicOff, Copy, Check } from "lucide-react";
 import Image from "next/image";
+import { useWebRTC } from "../hooks/useWebRTC";
 
 export default function AudioCall() {
   const [peerId, setPeerId] = useState<string>("");
   const [remotePeerIdInput, setRemotePeerIdInput] = useState<string>("");
-  const [status, setStatus] = useState<"idle" | "connecting" | "calling" | "connected">("idle");
   const [isMuted, setIsMuted] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
-  const peerRef = useRef<Peer | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
-  const callRef = useRef<MediaConnection | null>(null);
-
+  // Generate random Peer ID on mount
   useEffect(() => {
-    // Initialize PeerJS
-    const initPeer = async () => {
+    setPeerId(Math.random().toString(36).substring(2, 9));
+  }, []);
+
+  const { 
+    status, 
+    incomingCall, 
+    remoteStream, 
+    callUser, 
+    answerCall, 
+    endCall: hookEndCall 
+  } = useWebRTC(peerId);
+
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
+
+  // Get local audio stream
+  useEffect(() => {
+    const getStream = async () => {
       try {
-        // Fetch ICE servers from our API route
-        const response = await fetch("/api/turn-credentials");
-        const data = await response.json();
-        const iceServers = data.iceServers || [
-          { urls: "stun:stun.l.google.com:19302" },
-        ];
-
-        const peer = new Peer({
-          config: {
-            iceServers: iceServers,
-          },
-        });
-        
-        peer.on("open", (id) => {
-          console.log("My peer ID is: " + id);
-          setPeerId(id);
-        });
-
-        peer.on("call", (call) => {
-          console.log("Incoming call from:", call.peer);
-          // Auto-answer for prototype simplicity, or ask user
-          // For this prototype, we'll answer automatically if we have a stream, 
-          // or prompt if we don't (but we should have requested it on mount)
-          
-          navigator.mediaDevices.getUserMedia({ audio: true })
-            .then((stream) => {
-              localStreamRef.current = stream;
-              call.answer(stream); // Answer the call with an A/V stream.
-              handleCallStream(call);
-            })
-            .catch((err) => {
-              console.error("Failed to get local stream", err);
-            });
-        });
-        
-        peerRef.current = peer;
-      } catch (error) {
-        console.error("PeerJS initialization failed", error);
-      }
-    };
-
-    initPeer();
-
-    // Get local audio stream early
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then((stream) => {
-        localStreamRef.current = stream;
-      })
-      .catch((err) => {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        setLocalStream(stream);
+      } catch (err) {
         console.error("Failed to get local stream", err);
         alert("Please allow microphone access to use this app.");
-      });
+      }
+    };
+    getStream();
 
     return () => {
-      peerRef.current?.destroy();
-      localStreamRef.current?.getTracks().forEach(track => track.stop());
+      localStream?.getTracks().forEach(track => track.stop());
     };
   }, []);
 
-  const handleCallStream = (call: MediaConnection) => {
-    callRef.current = call;
-    setStatus("connected");
+  // Auto-answer incoming calls (to match previous behavior)
+  useEffect(() => {
+    if (incomingCall && localStream) {
+      // Add a small delay or just answer
+      console.log("Auto-answering call from", incomingCall.from);
+      answerCall(localStream);
+    }
+  }, [incomingCall, localStream, answerCall]);
 
-    call.on("stream", (remoteStream) => {
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream;
-        remoteAudioRef.current.play().catch(e => console.error("Error playing remote audio:", e));
-      }
-    });
+  // Handle remote stream
+  useEffect(() => {
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(e => console.error("Error playing remote audio:", e));
+    }
+  }, [remoteStream]);
 
-    call.on("close", () => {
-      endCall();
-    });
-
-    call.on("error", (err) => {
-      console.error("Call error:", err);
-      endCall();
-    });
+  const handleStartCall = () => {
+    if (remotePeerIdInput && localStream) {
+      callUser(remotePeerIdInput, localStream);
+    }
   };
 
-  const startCall = () => {
-    if (!peerRef.current || !remotePeerIdInput || !localStreamRef.current) return;
-
-    setStatus("calling");
-    const call = peerRef.current.call(remotePeerIdInput, localStreamRef.current);
-    handleCallStream(call);
-  };
-
-  const endCall = () => {
-    callRef.current?.close();
-    callRef.current = null;
-    setStatus("idle");
+  const handleEndCall = () => {
+    hookEndCall();
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
     }
   };
 
   const toggleMute = () => {
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMuted(!audioTrack.enabled);
@@ -133,6 +91,10 @@ export default function AudioCall() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Derived status for UI to match previous states
+  // The hook has 'idle' | 'connecting' | 'calling' | 'connected'
+  // We can use that directly.
 
   return (
     <div className="flex flex-col items-center w-full max-w-md p-6 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800">
@@ -177,8 +139,8 @@ export default function AudioCall() {
               className="w-full p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 outline-none transition-all"
             />
             <button
-              onClick={startCall}
-              disabled={!remotePeerIdInput || !peerId}
+              onClick={handleStartCall}
+              disabled={!remotePeerIdInput || !peerId || !localStream}
               className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <Phone size={20} />
@@ -196,9 +158,11 @@ export default function AudioCall() {
             
             <div className="space-y-1">
               <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                {status === "connected" ? "Connected" : "Calling..."}
+                {status === "connected" ? "Connected" : (incomingCall ? "Incoming Call..." : "Calling...")}
               </h3>
-              <p className="text-sm text-zinc-500 font-mono">{remotePeerIdInput || "Unknown Peer"}</p>
+              <p className="text-sm text-zinc-500 font-mono">
+                {incomingCall ? incomingCall.from : (remotePeerIdInput || "Unknown Peer")}
+              </p>
             </div>
 
             <div className="flex items-center justify-center gap-4">
@@ -214,7 +178,7 @@ export default function AudioCall() {
               </button>
               
               <button
-                onClick={endCall}
+                onClick={handleEndCall}
                 className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
                 <PhoneOff size={24} />
@@ -229,4 +193,3 @@ export default function AudioCall() {
     </div>
   );
 }
-

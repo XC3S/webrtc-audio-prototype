@@ -1,132 +1,88 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Peer, MediaConnection } from "peerjs";
 import { Phone, PhoneOff, Mic, MicOff, Copy, Check, Video, VideoOff } from "lucide-react";
 import Image from "next/image";
+import { useWebRTC } from "../hooks/useWebRTC";
 
 export default function VideoCall() {
   const [peerId, setPeerId] = useState<string>("");
   const [remotePeerIdInput, setRemotePeerIdInput] = useState<string>("");
-  const [status, setStatus] = useState<"idle" | "connecting" | "calling" | "connected">("idle");
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
-  const peerRef = useRef<Peer | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const callRef = useRef<MediaConnection | null>(null);
 
+  // Generate random Peer ID on mount
   useEffect(() => {
-    // Initialize PeerJS
-    const initPeer = async () => {
+    setPeerId(Math.random().toString(36).substring(2, 9));
+  }, []);
+
+  const { 
+    status, 
+    incomingCall, 
+    remoteStream, 
+    callUser, 
+    answerCall, 
+    endCall: hookEndCall 
+  } = useWebRTC(peerId);
+
+  // Get local video stream
+  useEffect(() => {
+    const getStream = async () => {
       try {
-        // Fetch ICE servers from our API route
-        const response = await fetch("/api/turn-credentials");
-        const data = await response.json();
-        const iceServers = data.iceServers || [
-          { urls: "stun:stun.l.google.com:19302" },
-        ];
-
-        const peer = new Peer({
-          config: {
-            iceServers: iceServers,
-          },
-        });
-        
-        peer.on("open", (id) => {
-          console.log("My peer ID is: " + id);
-          setPeerId(id);
-        });
-
-        peer.on("call", (call) => {
-          console.log("Incoming call from:", call.peer);
-          // Auto-answer for prototype simplicity
-          
-          navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then((stream) => {
-              localStreamRef.current = stream;
-              if (localVideoRef.current) {
-                localVideoRef.current.srcObject = stream;
-              }
-              call.answer(stream); // Answer the call with an A/V stream.
-              handleCallStream(call);
-            })
-            .catch((err) => {
-              console.error("Failed to get local stream", err);
-            });
-        });
-        
-        peerRef.current = peer;
-      } catch (error) {
-        console.error("PeerJS initialization failed", error);
-      }
-    };
-
-    initPeer();
-
-    // Get local video stream early
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((stream) => {
-        localStreamRef.current = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        setLocalStream(stream);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to get local stream", err);
         alert("Please allow camera and microphone access to use this app.");
-      });
+      }
+    };
+    getStream();
 
     return () => {
-      peerRef.current?.destroy();
-      localStreamRef.current?.getTracks().forEach(track => track.stop());
+      localStream?.getTracks().forEach(track => track.stop());
     };
   }, []);
 
-  const handleCallStream = (call: MediaConnection) => {
-    callRef.current = call;
-    setStatus("connected");
+  // Auto-answer incoming calls
+  useEffect(() => {
+    if (incomingCall && localStream) {
+      console.log("Auto-answering video call from", incomingCall.from);
+      answerCall(localStream);
+    }
+  }, [incomingCall, localStream, answerCall]);
 
-    call.on("stream", (remoteStream) => {
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.play().catch(e => console.error("Error playing remote video:", e));
-      }
-    });
+  // Handle remote stream
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(e => console.error("Error playing remote video:", e));
+    }
+  }, [remoteStream]);
 
-    call.on("close", () => {
-      endCall();
-    });
-
-    call.on("error", (err) => {
-      console.error("Call error:", err);
-      endCall();
-    });
+  const handleStartCall = () => {
+    if (remotePeerIdInput && localStream) {
+      callUser(remotePeerIdInput, localStream);
+    }
   };
 
-  const startCall = () => {
-    if (!peerRef.current || !remotePeerIdInput || !localStreamRef.current) return;
-
-    setStatus("calling");
-    const call = peerRef.current.call(remotePeerIdInput, localStreamRef.current);
-    handleCallStream(call);
-  };
-
-  const endCall = () => {
-    callRef.current?.close();
-    callRef.current = null;
-    setStatus("idle");
+  const handleEndCall = () => {
+    hookEndCall();
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
   };
 
   const toggleMute = () => {
-    if (localStreamRef.current) {
-      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsMuted(!audioTrack.enabled);
@@ -135,8 +91,8 @@ export default function VideoCall() {
   };
 
   const toggleVideo = () => {
-    if (localStreamRef.current) {
-      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+    if (localStream) {
+      const videoTrack = localStream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         setIsVideoOff(!videoTrack.enabled);
@@ -193,7 +149,7 @@ export default function VideoCall() {
             playsInline
         />
         
-        {!callRef.current && status !== "connected" && (
+        {status !== "connected" && (
              <div className="absolute inset-0 flex items-center justify-center">
                  <p className="text-zinc-500">Remote video will appear here</p>
              </div>
@@ -228,8 +184,8 @@ export default function VideoCall() {
               className="w-full p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 outline-none transition-all"
             />
             <button
-              onClick={startCall}
-              disabled={!remotePeerIdInput || !peerId}
+              onClick={handleStartCall}
+              disabled={!remotePeerIdInput || !peerId || !localStream}
               className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <Phone size={20} />
@@ -240,9 +196,11 @@ export default function VideoCall() {
           <div className="space-y-6 text-center">
             <div className="space-y-1">
               <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                {status === "connected" ? "Connected" : "Calling..."}
+                {status === "connected" ? "Connected" : (incomingCall ? "Incoming Call..." : "Calling...")}
               </h3>
-              <p className="text-sm text-zinc-500 font-mono">{remotePeerIdInput || "Unknown Peer"}</p>
+              <p className="text-sm text-zinc-500 font-mono">
+                {incomingCall ? incomingCall.from : (remotePeerIdInput || "Unknown Peer")}
+              </p>
             </div>
 
             <div className="flex items-center justify-center gap-4">
@@ -269,7 +227,7 @@ export default function VideoCall() {
               </button>
               
               <button
-                onClick={endCall}
+                onClick={handleEndCall}
                 className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
                 <PhoneOff size={24} />
@@ -281,4 +239,3 @@ export default function VideoCall() {
     </div>
   );
 }
-

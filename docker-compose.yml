@@ -1,0 +1,21 @@
+services:
+  signaling:
+    build: ./signaling-server
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+    restart: always
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_SIGNALING_SERVER=http://localhost:3001
+    depends_on:
+      - signaling
+    volumes:
+      - .:/app
+      - /app/node_modules
+
