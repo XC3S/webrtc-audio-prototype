@@ -32,8 +32,8 @@ A modern, responsive WebRTC prototype built with Next.js 16, React 19, and PeerJ
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/webrtc-auto-prototype.git
-   cd webrtc-auto-prototype
+   git clone https://github.com/XC3S/webrtc-audio-prototype.git
+   cd webrtc-audio-prototype
    ```
 
 2. Install dependencies:
