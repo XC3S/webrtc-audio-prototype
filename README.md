@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WebRTC Audio & Video Call Prototype
+
+A modern, responsive WebRTC prototype built with Next.js 16, React 19, and PeerJS. This application demonstrates real-time audio and video communication between peers.
+
+## Features
+
+- **Video Calling**: Full audio/video communication with a picture-in-picture local view.
+- **Audio Calling**: Voice-only mode with mute controls.
+- **Real-time Connection**: Uses PeerJS for simplified WebRTC signaling.
+- **TURN/STUN Support**: 
+  - Automatic fallback to public STUN servers (Google).
+  - Configurable TURN server support (optimized for [Metered.ca](https://www.metered.ca/)).
+- **Modern UI**: Built with Tailwind CSS v4, featuring a clean, responsive design with dark mode support.
+- **Device Control**: Toggle microphone and camera during calls.
+
+## Tech Stack
+
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
+- **Language**: TypeScript
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **WebRTC**: [PeerJS](https://peerjs.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js (v18 or later recommended)
+- npm or yarn
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/webrtc-auto-prototype.git
+   cd webrtc-auto-prototype
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Learn More
+3. (Optional) Configure TURN Credentials:
+   Create a `.env.local` file in the root directory to add TURN server credentials (useful for connections behind strict firewalls). This project is pre-configured for Metered.ca but can be adapted.
 
-To learn more about Next.js, take a look at the following resources:
+   ```env
+   TURN_USERNAME=your_metered_username
+   TURN_CREDENTIAL=your_metered_credential
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Deploy on Vercel
+## How to Use
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Open Two Clients**: Open the application in two separate browser windows or tabs (or use two different devices on the same network).
+2. **Get Peer ID**: On Client A, look for the "Your Peer ID" section and click the copy button.
+3. **Connect**: 
+   - Paste Client A's Peer ID into the "Remote Peer ID" input field on Client B.
+   - Click **Start Video Call**.
+4. **Grant Permissions**: Allow the browser to access your microphone and camera when prompted.
+5. **Controls**:
+   - **Mute**: Toggle microphone on/off.
+   - **Video**: Toggle camera on/off (Video mode only).
+   - **End Call**: Disconnect the current session.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Project Structure
+
+- `app/page.tsx`: Main entry point rendering the call interface.
+- `app/components/`:
+  - `VideoCall.tsx`: Handles video stream logic, rendering, and call controls.
+  - `AudioCall.tsx`: simplified audio-only implementation (optional use).
+- `app/api/turn-credentials/`: API route to securely fetch ICE server configuration for PeerJS.
+
+## License
+
+This project is open-source and available under the [MIT License](LICENSE).
+
