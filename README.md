@@ -1,8 +1,6 @@
 # WebRTC SFU Prototype
 
-A scalable video conferencing prototype using **Mediasoup** (SFU Architecture), **Next.js 15**, **Socket.io**, and a self-hosted **Coturn** server.
-
-![Screenshot](public/window.svg)
+A scalable video conferencing prototype using **Mediasoup** (SFU Architecture), **Next.js 16**, **Socket.io**, and a self-hosted **Coturn** server.
 
 ## Architecture
 
