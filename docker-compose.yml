@@ -1,0 +1,45 @@
+services:
+  signaling:
+    build: ./signaling-server
+    ports:
+      - "3001:3001"
+      - "10000-10100:10000-10100/udp"
+      - "10000-10100:10000-10100/tcp"
+    environment:
+      - PORT=3001
+      # Important: If accessing from another device, change this to your LAN IP (e.g. 192.168.x.x)
+      - MEDIASOUP_ANNOUNCED_IP=127.0.0.1 
+    restart: always
+
+  turn:
+    image: coturn/coturn
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49152-65535:49152-65535/udp"
+    command: 
+      - --log-file=stdout 
+      - --external-ip=127.0.0.1
+      - --listening-port=3478 
+      - --min-port=49152 
+      - --max-port=65535 
+      - --user=myuser:mypassword 
+      - --realm=localhost
+    restart: always
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_SIGNALING_SERVER=http://localhost:3001
+      - TURN_USERNAME=myuser
+      - TURN_CREDENTIAL=mypassword
+    depends_on:
+      - signaling
+      - turn
+    volumes:
+      - .:/app
+      - /app/node_modules
