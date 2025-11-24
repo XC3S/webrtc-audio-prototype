@@ -1,83 +1,72 @@
-# WebRTC Audio & Video Call Prototype
+# WebRTC SFU Prototype
 
-A modern, responsive WebRTC prototype built with Next.js 16, React 19, and PeerJS. This application demonstrates real-time audio and video communication between peers.
+A scalable video conferencing prototype using **Mediasoup** (SFU Architecture), **Next.js 15**, **Socket.io**, and a self-hosted **Coturn** server.
 
-## Features
+![Screenshot](public/window.svg)
 
-- **Video Calling**: Full audio/video communication with a picture-in-picture local view.
-- **Audio Calling**: Voice-only mode with mute controls.
-- **Real-time Connection**: Uses PeerJS for simplified WebRTC signaling.
-- **TURN/STUN Support**: 
-  - Automatic fallback to public STUN servers (Google).
-  - Configurable TURN server support (optimized for [Metered.ca](https://www.metered.ca/)).
-- **Modern UI**: Built with Tailwind CSS v4, featuring a clean, responsive design with dark mode support.
-- **Device Control**: Toggle microphone and camera during calls.
+## Architecture
 
-## Tech Stack
+This project implements a Selective Forwarding Unit (SFU) architecture:
+1.  **Frontend (Next.js)**: Captures user media, fetches ICE credentials, and connects to the signaling server.
+2.  **Signaling Server (Node.js)**: Orchestrates rooms and peers via Socket.io.
+3.  **Media Server (Mediasoup)**:
+    *   Runs inside the signaling server container.
+    *   Receives one high-quality stream from each publisher.
+    *   Forwards that stream to all other subscribers in the room (N-to-N broadcasting).
+    *   Uses specific UDP/TCP ports (`10000-10100`) for media traffic.
+4.  **TURN Server (Coturn)**:
+    *   Provides relay capabilities for clients behind restrictive firewalls.
+    *   Self-hosted via Docker.
+    *   Default ports: `3478` (STUN/TURN), `49152-65535` (Relay).
 
-- **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
-- **Language**: TypeScript
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
-- **WebRTC**: [PeerJS](https://peerjs.com/)
-- **Icons**: [Lucide React](https://lucide.dev/)
+## Prerequisites
+
+*   Docker & Docker Compose
+*   Node.js 18+ (for local development without Docker)
 
 ## Getting Started
 
-### Prerequisites
+### 1. Start with Docker (Recommended)
 
-- Node.js (v18 or later recommended)
-- npm or yarn
+This will start the Frontend (3000), SFU Server (3001), and TURN Server (3478).
 
-### Installation
+```bash
+docker-compose up --build
+```
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/XC3S/webrtc-audio-prototype.git
-   cd webrtc-audio-prototype
-   ```
+*   **Frontend**: [http://localhost:3000](http://localhost:3000)
+*   **Signaling Server**: http://localhost:3001
+*   **TURN Server**: localhost:3478
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+### 2. Usage
 
-3. (Optional) Configure TURN Credentials:
-   Create a `.env.local` file in the root directory to add TURN server credentials (useful for connections behind strict firewalls). This project is pre-configured for Metered.ca but can be adapted.
+1.  Open [http://localhost:3000](http://localhost:3000) in multiple browser tabs or windows.
+2.  Enter a **Room Name** (e.g., `demo`).
+3.  Click **Join Room**.
+4.  You should see all participants in a grid layout.
 
-   ```env
-   TURN_USERNAME=your_metered_username
-   TURN_CREDENTIAL=your_metered_credential
-   ```
+### Configuration
 
-4. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## How to Use
-
-1. **Open Two Clients**: Open the application in two separate browser windows or tabs (or use two different devices on the same network).
-2. **Get Peer ID**: On Client A, look for the "Your Peer ID" section and click the copy button.
-3. **Connect**: 
-   - Paste Client A's Peer ID into the "Remote Peer ID" input field on Client B.
-   - Click **Start Video Call**.
-4. **Grant Permissions**: Allow the browser to access your microphone and camera when prompted.
-5. **Controls**:
-   - **Mute**: Toggle microphone on/off.
-   - **Video**: Toggle camera on/off (Video mode only).
-   - **End Call**: Disconnect the current session.
+*   **Media Ports**: The SFU uses ports `10000-10100` (UDP/TCP).
+*   **TURN Ports**: Coturn uses `3478` and range `49152-65535`.
+*   **Announced IP**: 
+    *   **SFU**: By default `127.0.0.1`. Update `MEDIASOUP_ANNOUNCED_IP` in `docker-compose.yml` if deploying or testing on LAN.
+    *   **TURN**: Update command flag `--external-ip` in `docker-compose.yml` if deploying.
 
 ## Project Structure
 
-- `app/page.tsx`: Main entry point rendering the call interface.
-- `app/components/`:
-  - `VideoCall.tsx`: Handles video stream logic, rendering, and call controls.
-  - `AudioCall.tsx`: simplified audio-only implementation (optional use).
-- `app/api/turn-credentials/`: API route to securely fetch ICE server configuration for PeerJS.
+*   **`/app`**: Next.js Frontend.
+    *   `components/VideoCall.tsx`: Main UI with video grid.
+    *   `hooks/useWebRTC.ts`: Custom hook managing Mediasoup client logic.
+    *   `api/turn-credentials/route.ts`: Serves local TURN credentials to the client.
+*   **`/signaling-server`**: Node.js backend.
+    *   `server.js`: Socket.io handlers and Mediasoup orchestration.
+    *   `config.js`: Mediasoup codec and transport settings.
 
-## License
+## Troubleshooting
 
-This project is open-source and available under the [MIT License](LICENSE).
-
+*   **Black Screen / No Video**:
+    *   Ensure ports `10000-10100` are not blocked by a firewall.
+    *   If running on a remote server, ensure `MEDIASOUP_ANNOUNCED_IP` and Coturn's `--external-ip` match the public IP.
+*   **Build Errors**:
+    *   If `mediasoup` fails to build, ensure you are using the provided `Dockerfile` which includes `python3` and `build-essential`.

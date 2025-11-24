@@ -13,6 +13,14 @@ export interface RemotePeer {
 export const useWebRTC = (myPeerId: string) => {
   const [status, setStatus] = useState<'idle' | 'connecting' | 'connected'>('idle');
   const [remoteStreams, setRemoteStreams] = useState<RemotePeer[]>([]);
+  const [iceServers, setIceServers] = useState<RTCIceServer[]>([]);
+
+  useEffect(() => {
+    fetch('/api/turn-credentials')
+      .then((res) => res.json())
+      .then((data) => setIceServers(data.iceServers))
+      .catch((err) => console.error('Failed to fetch ICE servers:', err));
+  }, []);
   
   const socketRef = useRef<Socket | null>(null);
   const deviceRef = useRef<Device | null>(null);
@@ -101,7 +109,10 @@ export const useWebRTC = (myPeerId: string) => {
         socketRef.current!.emit('createWebRtcTransport', { consumer: false }, async ({ params }: any) => {
           if (!params) return; 
 
-          const transport = deviceRef.current!.createSendTransport(params);
+          const transport = deviceRef.current!.createSendTransport({
+            ...params,
+            iceServers,
+          });
           sendTransportRef.current = transport;
 
           transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
@@ -139,7 +150,10 @@ export const useWebRTC = (myPeerId: string) => {
         socketRef.current!.emit('createWebRtcTransport', { consumer: true }, async ({ params }: any) => {
           if (!params) return;
 
-          const transport = deviceRef.current!.createRecvTransport(params);
+          const transport = deviceRef.current!.createRecvTransport({
+            ...params,
+            iceServers,
+          });
           recvTransportRef.current = transport;
 
           transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
