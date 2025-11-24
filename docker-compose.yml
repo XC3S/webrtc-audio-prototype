@@ -3,8 +3,12 @@ services:
     build: ./signaling-server
     ports:
       - "3001:3001"
+      - "10000-10100:10000-10100/udp"
+      - "10000-10100:10000-10100/tcp"
     environment:
       - PORT=3001
+      # Important: If accessing from another device, change this to your LAN IP (e.g. 192.168.x.x)
+      - MEDIASOUP_ANNOUNCED_IP=127.0.0.1 
     restart: always
 
   app:
@@ -18,4 +22,3 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
-
