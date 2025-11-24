@@ -331,7 +331,7 @@ io.on('connection', (socket) => {
            const consumer = peerData.consumers.get(consumerId);
            if (consumer) {
                await consumer.resume();
-               callback({ success: true });
+               if (callback) callback({ success: true });
            }
        }
   });
