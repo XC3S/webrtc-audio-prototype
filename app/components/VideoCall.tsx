@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Phone, PhoneOff, Mic, MicOff, Copy, Check, Video, VideoOff } from "lucide-react";
+import { Phone, PhoneOff, Mic, MicOff, Copy, Check, Video, VideoOff, Users } from "lucide-react";
 import Image from "next/image";
 import { useWebRTC } from "../hooks/useWebRTC";
 
 export default function VideoCall() {
-  const [peerId, setPeerId] = useState<string>("");
-  const [remotePeerIdInput, setRemotePeerIdInput] = useState<string>("");
+  const [peerId, setPeerId] = useState<string>(""); // Used as 'username' essentially
+  const [roomId, setRoomId] = useState<string>("room1"); // Default room
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
   // Generate random Peer ID on mount
   useEffect(() => {
@@ -23,11 +21,10 @@ export default function VideoCall() {
 
   const { 
     status, 
-    incomingCall, 
-    remoteStream, 
-    callUser, 
-    answerCall, 
-    endCall: hookEndCall 
+    remoteStreams,
+    joinRoom,
+    leaveRoom,
+    produce
   } = useWebRTC(peerId);
 
   // Get local video stream
@@ -51,33 +48,19 @@ export default function VideoCall() {
     };
   }, []);
 
-  // Auto-answer incoming calls
-  useEffect(() => {
-    if (incomingCall && localStream) {
-      console.log("Auto-answering video call from", incomingCall.from);
-      answerCall(localStream);
-    }
-  }, [incomingCall, localStream, answerCall]);
-
-  // Handle remote stream
-  useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
-      remoteVideoRef.current.play().catch(e => console.error("Error playing remote video:", e));
-    }
-  }, [remoteStream]);
-
-  const handleStartCall = () => {
-    if (remotePeerIdInput && localStream) {
-      callUser(remotePeerIdInput, localStream);
+  const handleJoinRoom = async () => {
+    if (roomId && localStream) {
+      await joinRoom(roomId);
+      
+      // Publish tracks
+      localStream.getTracks().forEach(track => {
+        produce(track);
+      });
     }
   };
 
-  const handleEndCall = () => {
-    hookEndCall();
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
-    }
+  const handleLeaveRoom = () => {
+    leaveRoom();
   };
 
   const toggleMute = () => {
@@ -100,14 +83,8 @@ export default function VideoCall() {
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(peerId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
-    <div className="flex flex-col items-center w-full max-w-4xl p-6 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800">
+    <div className="flex flex-col items-center w-full max-w-6xl p-6 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-800">
       <div className="w-full flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
             <Image 
@@ -117,46 +94,18 @@ export default function VideoCall() {
             height={40} 
             className="rounded-lg"
             />
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Video Call Prototype</h2>
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">SFU Conference Prototype</h2>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full">
+             <Users size={16} className="text-zinc-500" />
+             <span className="text-sm font-medium">{remoteStreams.length + 1} in room</span>
         </div>
       </div>
 
-      {/* Peer ID Section */}
-      <div className="w-full mb-8 p-4 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-100 dark:border-zinc-800">
-        <p className="text-sm text-zinc-500 mb-2">Your Peer ID</p>
-        <div className="flex items-center justify-between gap-2">
-          <code className="flex-1 font-mono text-sm bg-white dark:bg-black p-2 rounded border border-zinc-200 dark:border-zinc-800 overflow-hidden text-ellipsis">
-            {peerId || "Generating ID..."}
-          </code>
-          <button
-            onClick={copyToClipboard}
-            disabled={!peerId}
-            className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-            title="Copy ID"
-          >
-            {copied ? <Check size={18} /> : <Copy size={18} />}
-          </button>
-        </div>
-      </div>
-
-      {/* Video Area */}
-      <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden mb-6 border border-zinc-800 shadow-inner">
-        {/* Remote Video (Main) */}
-        <video 
-            ref={remoteVideoRef}
-            className="w-full h-full object-cover"
-            autoPlay
-            playsInline
-        />
-        
-        {status !== "connected" && (
-             <div className="absolute inset-0 flex items-center justify-center">
-                 <p className="text-zinc-500">Remote video will appear here</p>
-             </div>
-        )}
-
-        {/* Local Video (PIP) */}
-        <div className="absolute bottom-4 right-4 w-48 aspect-video bg-zinc-900 rounded-xl border border-zinc-700 overflow-hidden shadow-2xl">
+      {/* Video Grid */}
+      <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        {/* Local Video */}
+        <div className="relative aspect-video bg-zinc-950 rounded-xl overflow-hidden border border-zinc-800 shadow-lg">
              <video 
                 ref={localVideoRef}
                 className="w-full h-full object-cover scale-x-[-1]"
@@ -164,46 +113,44 @@ export default function VideoCall() {
                 playsInline
                 muted
              />
+             <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-xs text-white">
+                 You ({peerId})
+             </div>
              {isVideoOff && (
-                 <div className="absolute inset-0 flex items-center justify-center bg-zinc-800">
-                     <VideoOff size={20} className="text-zinc-500" />
+                 <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/90">
+                     <VideoOff size={32} className="text-zinc-500" />
                  </div>
              )}
         </div>
+
+        {/* Remote Videos */}
+        {remoteStreams.map((remote) => (
+           <RemoteVideo key={remote.id} stream={remote.stream} id={remote.id} />
+        ))}
       </div>
 
-      {/* Call Controls */}
+      {/* Controls */}
       <div className="w-full space-y-4">
         {status === "idle" ? (
-          <div className="space-y-4 max-w-md mx-auto">
+          <div className="flex items-center gap-4 max-w-xl mx-auto p-4 bg-zinc-50 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800">
             <input
               type="text"
-              placeholder="Enter Remote Peer ID"
-              value={remotePeerIdInput}
-              onChange={(e) => setRemotePeerIdInput(e.target.value)}
-              className="w-full p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 outline-none transition-all"
+              placeholder="Enter Room Name"
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              className="flex-1 p-3 rounded-lg bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100 outline-none transition-all"
             />
             <button
-              onClick={handleStartCall}
-              disabled={!remotePeerIdInput || !peerId || !localStream}
-              className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
+              onClick={handleJoinRoom}
+              disabled={!roomId || !localStream}
+              className="py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
             >
-              <Phone size={20} />
-              Start Video Call
+              <Users size={20} />
+              Join Room
             </button>
           </div>
         ) : (
-          <div className="space-y-6 text-center">
-            <div className="space-y-1">
-              <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-                {status === "connected" ? "Connected" : (incomingCall ? "Incoming Call..." : "Calling...")}
-              </h3>
-              <p className="text-sm text-zinc-500 font-mono">
-                {incomingCall ? incomingCall.from : (remotePeerIdInput || "Unknown Peer")}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4">
               <button
                 onClick={toggleMute}
                 className={`p-4 rounded-full transition-colors ${
@@ -227,15 +174,38 @@ export default function VideoCall() {
               </button>
               
               <button
-                onClick={handleEndCall}
+                onClick={handleLeaveRoom}
                 className="p-4 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
                 <PhoneOff size={24} />
               </button>
-            </div>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function RemoteVideo({ stream, id }: { stream: MediaStream; id: string }) {
+    const videoRef = useRef<HTMLVideoElement>(null);
+
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+        }
+    }, [stream]);
+
+    return (
+        <div className="relative aspect-video bg-zinc-950 rounded-xl overflow-hidden border border-zinc-800 shadow-lg">
+             <video 
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                autoPlay
+                playsInline
+             />
+             <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-xs text-white">
+                 User {id.substring(0, 4)}...
+             </div>
+        </div>
+    );
 }

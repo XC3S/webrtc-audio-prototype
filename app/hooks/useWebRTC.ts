@@ -1,219 +1,239 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { Device } from 'mediasoup-client';
+import { Transport, Producer, Consumer } from 'mediasoup-client/lib/types';
 
 const SIGNALING_SERVER_URL = process.env.NEXT_PUBLIC_SIGNALING_SERVER || 'http://localhost:3001';
 
-interface IncomingCall {
-  from: string;
-  signal: any;
+export interface RemotePeer {
+  id: string; // socketId/producerId combo usually, but here we simplify
+  stream: MediaStream;
 }
 
 export const useWebRTC = (myPeerId: string) => {
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'calling' | 'connected'>('idle');
-  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [status, setStatus] = useState<'idle' | 'connecting' | 'connected'>('idle');
+  const [remoteStreams, setRemoteStreams] = useState<RemotePeer[]>([]);
   
   const socketRef = useRef<Socket | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const pendingCandidates = useRef<RTCIceCandidateInit[]>([]);
+  const deviceRef = useRef<Device | null>(null);
+  const sendTransportRef = useRef<Transport | null>(null);
+  const recvTransportRef = useRef<Transport | null>(null);
+  const producersRef = useRef<Map<string, Producer>>(new Map()); // kind -> producer
+  const consumersRef = useRef<Map<string, Consumer>>(new Map()); // consumerId -> consumer
 
-  // Initialize Socket connection
+  // Initialize Socket
   useEffect(() => {
-    if (!myPeerId) return;
-
     socketRef.current = io(SIGNALING_SERVER_URL);
-
+    
     socketRef.current.on('connect', () => {
       console.log('Connected to signaling server');
-      socketRef.current?.emit('register', myPeerId);
     });
 
-    socketRef.current.on('incoming-call', ({ from, signal }) => {
-      console.log('Incoming call from:', from);
-      setIncomingCall({ from, signal });
-      setStatus('connecting');
+    socketRef.current.on('disconnect', () => {
+      console.log('Disconnected from signaling server');
+      setStatus('idle');
     });
 
-    socketRef.current.on('call-accepted', async (signal) => {
-      console.log('Call accepted by remote');
-      setStatus('connected');
-      if (peerConnectionRef.current) {
-        try {
-            await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(signal));
-            // Process any queued candidates
-            while (pendingCandidates.current.length > 0) {
-                const candidate = pendingCandidates.current.shift();
-                if (candidate) {
-                    await peerConnectionRef.current.addIceCandidate(candidate);
-                }
-            }
-        } catch (e) {
-            console.error("Error setting remote description:", e);
-        }
-      }
+    socketRef.current.on('newProducer', ({ producerId }) => {
+      console.log('New producer announced:', producerId);
+      consume(producerId);
     });
 
-    socketRef.current.on('ice-candidate', async ({ candidate }) => {
-      if (peerConnectionRef.current) {
-        try {
-            if (peerConnectionRef.current.remoteDescription) {
-                 await peerConnectionRef.current.addIceCandidate(candidate);
-            } else {
-                 // Queue candidate if remote description isn't set yet
-                 pendingCandidates.current.push(candidate);
-            }
-        } catch (e) {
-          console.error("Error adding received ICE candidate", e);
-        }
-      }
+    socketRef.current.on('consumerClosed', ({ consumerId }) => {
+        console.log('Consumer closed:', consumerId);
+        removeConsumer(consumerId);
     });
 
     return () => {
       socketRef.current?.disconnect();
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
     };
+  }, []);
+
+  const joinRoom = useCallback(async (roomId: string) => {
+    if (!socketRef.current) return;
+    setStatus('connecting');
+
+    // 1. Join Room & Get Router Capabilities
+    socketRef.current.emit('joinRoom', { roomId, peerId: myPeerId }, async (response: any) => {
+      if (response.error) {
+        console.error('Join room error:', response.error);
+        setStatus('idle');
+        return;
+      }
+
+      const { rtpCapabilities } = response;
+      
+      // 2. Load Mediasoup Device
+      try {
+        const device = new Device();
+        await device.load({ routerRtpCapabilities: rtpCapabilities });
+        deviceRef.current = device;
+
+        // 3. Create Transports
+        await createSendTransport();
+        await createRecvTransport();
+
+        setStatus('connected');
+        
+      } catch (error) {
+        console.error('Failed to load device or create transports:', error);
+        setStatus('idle');
+      }
+    });
   }, [myPeerId]);
 
-  const createPeerConnection = async () => {
-    // Fetch ICE servers
-    let iceServers = [
-      { urls: "stun:stun.l.google.com:19302" },
-    ];
+  const createSendTransport = async () => {
+     if (!socketRef.current || !deviceRef.current) return;
 
-    try {
-      const response = await fetch("/api/turn-credentials");
-      const data = await response.json();
-      if (data.iceServers) {
-        iceServers = data.iceServers;
-      }
-    } catch (error) {
-      console.error("Failed to fetch TURN credentials", error);
-    }
+     socketRef.current.emit('createWebRtcTransport', { consumer: false }, async ({ params }: any) => {
+        if (!params) return; // Error handled in server callback ideally
 
-    const pc = new RTCPeerConnection({
-      iceServers,
-    });
+        const transport = deviceRef.current!.createSendTransport(params);
+        sendTransportRef.current = transport;
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current) {
-        // Determine target - simplistic logic for prototype
-        // In a real app, we need to track who we are talking to explicitly in state
-        // For now, we rely on the socket server or state if we had it.
-        // Wait, we need to know WHO to send it to.
-        // Let's store the current 'connected peer' in a ref or state.
-      }
-    };
+        transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+          try {
+             socketRef.current?.emit('connectTransport', { 
+               transportId: transport.id, 
+               dtlsParameters 
+             }, () => callback());
+          } catch (error: any) {
+             errback(error);
+          }
+        });
 
-    pc.ontrack = (event) => {
-      console.log('Received remote track');
-      setRemoteStream(event.streams[0]);
-    };
-    
-    // Clean up pending candidates queue on new PC
-    pendingCandidates.current = [];
-
-    return pc;
+        transport.on('produce', async ({ kind, rtpParameters }, callback, errback) => {
+          try {
+             socketRef.current?.emit('produce', { 
+               transportId: transport.id, 
+               kind, 
+               rtpParameters 
+             }, ({ id }: any) => callback({ id }));
+          } catch (error: any) {
+             errback(error);
+          }
+        });
+     });
   };
 
-  // We need a way to track the remote peer ID for sending ICE candidates
-  const currentRemotePeerId = useRef<string | null>(null);
+  const createRecvTransport = async () => {
+    if (!socketRef.current || !deviceRef.current) return;
 
-  const callUser = useCallback(async (userToCall: string, stream: MediaStream) => {
-    setStatus('calling');
-    currentRemotePeerId.current = userToCall;
-    localStreamRef.current = stream;
+    socketRef.current.emit('createWebRtcTransport', { consumer: true }, async ({ params }: any) => {
+       if (!params) return;
 
-    const pc = await createPeerConnection();
-    peerConnectionRef.current = pc;
+       const transport = deviceRef.current!.createRecvTransport(params);
+       recvTransportRef.current = transport;
 
-    // Add tracks
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-    // Handle ICE candidates specifically for this peer
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current) {
-        socketRef.current.emit('ice-candidate', { 
-          to: userToCall, 
-          candidate: event.candidate 
-        });
-      }
-    };
-
-    // Create Offer
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    socketRef.current?.emit('call-user', {
-      userToCall,
-      signalData: offer,
-      from: myPeerId
+       transport.on('connect', async ({ dtlsParameters }, callback, errback) => {
+         try {
+            socketRef.current?.emit('connectTransport', { 
+              transportId: transport.id, 
+              dtlsParameters 
+            }, () => callback());
+         } catch (error: any) {
+            errback(error);
+         }
+       });
     });
-  }, [myPeerId]);
+ };
 
-  const answerCall = useCallback(async (stream: MediaStream) => {
-    if (!incomingCall) return;
-    
-    setStatus('connected');
-    localStreamRef.current = stream;
-    currentRemotePeerId.current = incomingCall.from;
+  const produce = useCallback(async (track: MediaStreamTrack) => {
+    if (!deviceRef.current || !sendTransportRef.current) {
+      console.error('Device or SendTransport not ready');
+      return;
+    }
 
-    const pc = await createPeerConnection();
-    peerConnectionRef.current = pc;
+    try {
+      const producer = await sendTransportRef.current.produce({ track });
+      producersRef.current.set(track.kind, producer);
+      
+      producer.on('trackended', () => {
+        console.log('Track ended');
+        // Could close producer here
+      });
 
-    // Add tracks
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      producer.on('transportclose', () => {
+        console.log('Producer transport closed');
+        producersRef.current.delete(track.kind);
+      });
 
-    // Handle ICE candidates
-    pc.onicecandidate = (event) => {
-      if (event.candidate && socketRef.current) {
-        socketRef.current.emit('ice-candidate', { 
-          to: incomingCall.from, 
-          candidate: event.candidate 
-        });
+    } catch (error) {
+      console.error('Produce error:', error);
+    }
+  }, []);
+
+  const consume = useCallback(async (producerId: string) => {
+    if (!deviceRef.current || !recvTransportRef.current || !socketRef.current) return;
+
+    const rtpCapabilities = deviceRef.current.rtpCapabilities;
+
+    socketRef.current.emit('consume', { 
+      producerId, 
+      transportId: recvTransportRef.current.id,
+      rtpCapabilities 
+    }, async ({ params }: any) => {
+      if (!params) {
+          console.error('Consume failed, no params');
+          return;
       }
-    };
 
-    // Set Remote Description (Offer)
-    await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.signal));
+      try {
+         const consumer = await recvTransportRef.current!.consume({
+           id: params.id,
+           producerId: params.producerId,
+           kind: params.kind,
+           rtpParameters: params.rtpParameters,
+         });
 
-    // Create Answer
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+         consumersRef.current.set(consumer.id, consumer);
 
-    socketRef.current?.emit('answer-call', {
-      signal: answer,
-      to: incomingCall.from
+         // Create a new stream for this consumer
+         const stream = new MediaStream();
+         stream.addTrack(consumer.track);
+         
+         setRemoteStreams(prev => [...prev, { id: consumer.id, stream }]);
+
+         // Resume the consumer (server starts it paused)
+         socketRef.current?.emit('resume', { consumerId: consumer.id });
+
+      } catch (error) {
+         console.error('Consume error:', error);
+      }
     });
-    
-    setIncomingCall(null);
-  }, [incomingCall, myPeerId]);
+  }, []);
 
-  const endCall = useCallback(() => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
-    }
-    if (localStreamRef.current) {
-        // We don't stop the local stream tracks here because they might be used for preview
-        // But we clear the ref from the connection perspective
-    }
-    setRemoteStream(null);
+  const removeConsumer = (consumerId: string) => {
+    consumersRef.current.get(consumerId)?.close();
+    consumersRef.current.delete(consumerId);
+    setRemoteStreams(prev => prev.filter(p => p.id !== consumerId));
+  };
+
+  const leaveRoom = useCallback(() => {
+    // Close all producers
+    producersRef.current.forEach(p => p.close());
+    producersRef.current.clear();
+
+    // Close all consumers
+    consumersRef.current.forEach(c => c.close());
+    consumersRef.current.clear();
+    setRemoteStreams([]);
+
+    // Close transports
+    sendTransportRef.current?.close();
+    recvTransportRef.current?.close();
+    
     setStatus('idle');
-    setIncomingCall(null);
-    currentRemotePeerId.current = null;
-    // Notify server/remote? In a full app yes, here maybe just close.
+    // Could emit 'leaveRoom' to server if we wanted explicit cleanup
+    socketRef.current?.disconnect(); 
+    socketRef.current?.connect(); // Reconnect for next session
   }, []);
 
   return {
     status,
-    incomingCall,
-    remoteStream,
-    callUser,
-    answerCall,
-    endCall
+    remoteStreams,
+    joinRoom,
+    leaveRoom,
+    produce
   };
 };
-
