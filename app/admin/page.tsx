@@ -47,9 +47,11 @@ function AdminContent() {
       return;
     }
     setActiveCallUser(user);
-    // Optional: Notify server we are picking this up, to remove from queue immediately
-    // or let the 'disconnect' or 'leave' handle it later.
-    // For now, we just start the call client-side.
+    
+    // Emit the signal to the server so it can tell the user we are calling
+    if (socket) {
+        socket.emit("call_request", { userId: user.id, adminPeerId });
+    }
   };
 
   const handleCallEnd = () => {

@@ -22,6 +22,14 @@ export default function Home() {
       console.log("Connected to socket server");
     });
 
+    socketInstance.on("call_incoming", ({ adminPeerId }: { adminPeerId: string }) => {
+      console.log("Incoming call signal from admin:", adminPeerId);
+      // We don't need to do much here if PeerJS auto-answers, 
+      // BUT we might need to ensure the UI knows we are connecting 
+      // if the PeerJS 'call' event hasn't fired yet or if we want to be verbose.
+      // The actual video connection happens via PeerJS.
+    });
+
     setSocket(socketInstance);
 
     return () => {
