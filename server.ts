@@ -35,6 +35,12 @@ app.prepare().then(() => {
 
     socket.on("join_topic", ({ topic, peerId }: { topic: string; peerId: string }) => {
       console.log(`User ${socket.id} joined topic ${topic} with PeerID ${peerId}`);
+
+      // Remove existing entry for this socket ID if any (prevents duplicates)
+      const existingIndex = waitingUsers.findIndex(u => u.id === socket.id);
+      if (existingIndex !== -1) {
+        waitingUsers.splice(existingIndex, 1);
+      }
       
       // Add to waiting list
       const newUser: User = {

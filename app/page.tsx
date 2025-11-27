@@ -65,11 +65,12 @@ export default function Home() {
       <header className="w-full p-6 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
          <div className="flex items-center gap-3">
             <Image 
-            src="/logo.png" 
+            src="https://www.veilingrheinmaas.com/typo3conf/ext/site_template/Resources/Public/Img/logo.png" 
             alt="Logo" 
-            width={32} 
-            height={32} 
-            className="rounded-lg"
+            width={0} 
+            height={0}
+            sizes="100vw"
+            className="w-auto h-8 rounded-lg"
             />
             <h1 className="text-xl font-bold">Support Center</h1>
         </div>

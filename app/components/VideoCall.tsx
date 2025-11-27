@@ -195,11 +195,12 @@ export default function VideoCall({
         <div className="w-full flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
               <Image 
-              src="/logo.png" 
+              src="https://www.veilingrheinmaas.com/typo3conf/ext/site_template/Resources/Public/Img/logo.png" 
               alt="Logo" 
-              width={40} 
-              height={40} 
-              className="rounded-lg"
+              width={0} 
+              height={0}
+              sizes="100vw"
+              className="w-auto h-8 rounded-lg"
               />
               <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Video Call Prototype</h2>
           </div>
