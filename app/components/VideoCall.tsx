@@ -126,7 +126,19 @@ export default function VideoCall({
     call.on("stream", (remoteStream) => {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.play().catch(e => console.error("Error playing remote video:", e));
+        // Attempt play, but catch interruptions gracefully
+        const playPromise = remoteVideoRef.current.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(e => {
+                if (e.name === "AbortError") {
+                    // The play request was interrupted by a new load request. 
+                    // This often happens if stream is reset quickly. Safe to ignore.
+                    console.log("Video play interrupted by new stream load (harmless)");
+                } else {
+                    console.error("Error playing remote video:", e);
+                }
+            });
+        }
       }
     });
 
