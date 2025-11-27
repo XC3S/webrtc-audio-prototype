@@ -14,7 +14,7 @@ const handle = app.getRequestHandler();
 type User = {
   id: string; // socket id
   peerId?: string;
-  topic: string;
+  auction: string;
   joinedAt: number;
 };
 
@@ -33,8 +33,8 @@ app.prepare().then(() => {
 
     // --- User Events ---
 
-    socket.on("join_topic", ({ topic, peerId }: { topic: string; peerId: string }) => {
-      console.log(`User ${socket.id} joined topic ${topic} with PeerID ${peerId}`);
+    socket.on("join_auction", ({ auction, peerId }: { auction: string; peerId: string }) => {
+      console.log(`User ${socket.id} joined auction ${auction} with PeerID ${peerId}`);
 
       // Remove existing entry for this socket ID if any (prevents duplicates)
       const existingIndex = waitingUsers.findIndex(u => u.id === socket.id);
@@ -46,36 +46,36 @@ app.prepare().then(() => {
       const newUser: User = {
         id: socket.id,
         peerId,
-        topic,
+        auction,
         joinedAt: Date.now(),
       };
       waitingUsers.push(newUser);
       
-      // Join a room for this topic so we can target them easily if needed, 
+      // Join a room for this auction so we can target them easily if needed, 
       // though specific user targeting usually uses socket.id
-      socket.join(`topic_${topic}`);
+      socket.join(`auction_${auction}`);
 
-      // Notify admins of this topic
-      io.to(`admin_${topic}`).emit("queue_update", waitingUsers.filter(u => u.topic === topic));
+      // Notify admins of this auction
+      io.to(`admin_${auction}`).emit("queue_update", waitingUsers.filter(u => u.auction === auction));
     });
 
-    socket.on("leave_topic", () => {
+    socket.on("leave_auction", () => {
       const index = waitingUsers.findIndex(u => u.id === socket.id);
       if (index !== -1) {
         const user = waitingUsers[index];
         waitingUsers.splice(index, 1);
-        io.to(`admin_${user.topic}`).emit("queue_update", waitingUsers.filter(u => u.topic === user.topic));
+        io.to(`admin_${user.auction}`).emit("queue_update", waitingUsers.filter(u => u.auction === user.auction));
       }
     });
 
     // --- Admin Events ---
 
-    socket.on("admin_join", (topic: string) => {
-      console.log(`Admin ${socket.id} joined topic ${topic}`);
-      socket.join(`admin_${topic}`);
+    socket.on("admin_join_auction", (auction: string) => {
+      console.log(`Admin ${socket.id} joined auction ${auction}`);
+      socket.join(`admin_${auction}`);
       
-      // Send current queue for this topic
-      socket.emit("queue_update", waitingUsers.filter(u => u.topic === topic));
+      // Send current queue for this auction
+      socket.emit("queue_update", waitingUsers.filter(u => u.auction === auction));
     });
 
     // Admin requests to call a user
@@ -93,7 +93,7 @@ app.prepare().then(() => {
         const user = waitingUsers[index];
         waitingUsers.splice(index, 1);
         // Notify admins
-        io.to(`admin_${user.topic}`).emit("queue_update", waitingUsers.filter(u => u.topic === user.topic));
+        io.to(`admin_${user.auction}`).emit("queue_update", waitingUsers.filter(u => u.auction === user.auction));
       }
     });
   });

@@ -6,10 +6,10 @@ import VideoCall from "./components/VideoCall";
 import { Clock, Phone, X } from "lucide-react";
 import Image from "next/image";
 
-const TOPICS = ["Clock 1", "Clock 2", "Clock 3"];
+const AUCTIONS = ["Clock 1", "Clock 2", "Clock 3"];
 
 export default function Home() {
-  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [selectedAuction, setSelectedAuction] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<"idle" | "waiting" | "connected">("idle");
   const [peerId, setPeerId] = useState<string>("");
@@ -37,17 +37,17 @@ export default function Home() {
     };
   }, []);
 
-  const handleTopicSelect = (topic: string) => {
-    setSelectedTopic(topic);
+  const handleAuctionSelect = (auction: string) => {
+    setSelectedAuction(auction);
     setStatus("waiting");
     // Logic continues once PeerID is ready in VideoCall
   };
 
   const handlePeerIdReady = (id: string) => {
     setPeerId(id);
-    // If we have a topic and socket is ready, join the topic queue
-    if (selectedTopic && socket) {
-      socket.emit("join_topic", { topic: selectedTopic, peerId: id });
+    // If we have an auction and socket is ready, join the auction queue
+    if (selectedAuction && socket) {
+      socket.emit("join_auction", { auction: selectedAuction, peerId: id });
     }
   };
 
@@ -62,9 +62,9 @@ export default function Home() {
 
   const handleEndSupport = () => {
     if (socket) {
-      socket.emit("leave_topic");
+      socket.emit("leave_auction");
     }
-    setSelectedTopic(null);
+    setSelectedAuction(null);
     setStatus("idle");
   };
 
@@ -87,17 +87,17 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center p-8 max-w-4xl mx-auto w-full">
         
         <div className="w-full mb-8">
-          <h2 className="text-2xl font-semibold mb-6">Recent Topics</h2>
+          <h2 className="text-2xl font-semibold mb-6">Recent Auctions</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {TOPICS.map((topic) => (
-              <div key={topic} className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all group">
+            {AUCTIONS.map((auction) => (
+              <div key={auction} className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all group">
                 <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <Clock className="text-zinc-500" />
                 </div>
-                <h3 className="text-lg font-medium mb-2">{topic}</h3>
-                <p className="text-sm text-zinc-500 mb-6">Get help regarding {topic.toLowerCase()}.</p>
+                <h3 className="text-lg font-medium mb-2">{auction}</h3>
+                <p className="text-sm text-zinc-500 mb-6">Get help regarding {auction.toLowerCase()}.</p>
                 <button
-                  onClick={() => handleTopicSelect(topic)}
+                  onClick={() => handleAuctionSelect(auction)}
                   className="w-full py-3 bg-black hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 dark:text-black text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <Phone size={18} />
@@ -111,14 +111,14 @@ export default function Home() {
       </main>
 
       {/* Support Overlay */}
-      {selectedTopic && (
+      {selectedAuction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-4xl bg-black rounded-3xl overflow-hidden shadow-2xl border border-zinc-800 aspect-video">
             
             {/* Header Overlay */}
             <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-20 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
               <div>
-                 <h3 className="text-white font-semibold text-lg">Support: {selectedTopic}</h3>
+                 <h3 className="text-white font-semibold text-lg">Support: {selectedAuction}</h3>
                  <p className="text-zinc-400 text-sm">
                    {status === "waiting" ? "Connecting to an agent..." : "Live Support Call"}
                  </p>

@@ -9,13 +9,13 @@ import { Video, Clock } from "lucide-react";
 type User = {
   id: string; // socket id
   peerId?: string;
-  topic: string;
+  auction: string;
   joinedAt: number;
 };
 
 function AdminContent() {
   const searchParams = useSearchParams();
-  const topic = searchParams.get("topic") || "default";
+  const auction = searchParams.get("auction") || "default";
   
   const [socket, setSocket] = useState<Socket | null>(null);
   const [queue, setQueue] = useState<User[]>([]);
@@ -27,7 +27,7 @@ function AdminContent() {
     
     socketInstance.on("connect", () => {
       console.log("Connected to socket server");
-      socketInstance.emit("admin_join", topic);
+      socketInstance.emit("admin_join_auction", auction);
     });
 
     socketInstance.on("queue_update", (updatedQueue: User[]) => {
@@ -39,7 +39,7 @@ function AdminContent() {
     return () => {
       socketInstance.disconnect();
     };
-  }, [topic]);
+  }, [auction]);
 
   const handleStartCall = (user: User) => {
     if (!adminPeerId) {
@@ -64,7 +64,7 @@ function AdminContent() {
         <header className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Support Dashboard</h1>
-            <p className="text-zinc-500 mt-1">Topic: <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">{topic}</span></p>
+            <p className="text-zinc-500 mt-1">Auction: <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">{auction}</span></p>
           </div>
           <div className="bg-white dark:bg-zinc-900 px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm">
             <span className="text-sm text-zinc-500">Status: </span>
