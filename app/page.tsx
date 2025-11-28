@@ -6,13 +6,43 @@ import VideoCall from "./components/VideoCall";
 import { Clock, Phone, X } from "lucide-react";
 import Image from "next/image";
 
-const AUCTIONS = ["Clock 1", "Clock 2", "Clock 3"];
+const AUCTIONS = [
+  {
+    id: "clock-1",
+    title: "Clock 1",
+    image: "/trolley/trolley1.jpeg",
+    number: "#1",
+    status: "won",
+  },
+  {
+    id: "clock-2",
+    title: "Clock 2",
+    image: "/trolley/trolley2.jpeg",
+    number: "#2",
+    status: "lost",
+  },
+  {
+    id: "clock-3",
+    title: "Clock 3",
+    image: "/trolley/trolley3.jpeg",
+    number: "#3",
+    status: "won",
+  },
+  {
+    id: "clock-4",
+    title: "Clock 4",
+    image: "/trolley/trolley4.jpeg",
+    number: "#4",
+    status: "lost",
+  },
+];
 
 export default function Home() {
   const [selectedAuction, setSelectedAuction] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<"idle" | "waiting" | "connected">("idle");
   const [peerId, setPeerId] = useState<string>("");
+  const [filter, setFilter] = useState<"all" | "won">("all");
 
   useEffect(() => {
     // Initialize socket connection
@@ -68,6 +98,11 @@ export default function Home() {
     setStatus("idle");
   };
 
+  const filteredAuctions = AUCTIONS.filter(auction => {
+    if (filter === 'all') return true;
+    return auction.status === 'won';
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100">
       <header className="w-full p-6 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
@@ -87,22 +122,75 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center p-8 max-w-4xl mx-auto w-full">
         
         <div className="w-full mb-8">
-          <h2 className="text-2xl font-semibold mb-6">Recent Auctions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {AUCTIONS.map((auction) => (
-              <div key={auction} className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all group">
-                <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Clock className="text-zinc-500" />
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-semibold">My Recent Auctions</h2>
+            <div className="relative">
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value as "all" | "won")}
+                className="appearance-none bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 pr-8 text-sm font-medium outline-none focus:ring-2 focus:ring-black dark:focus:ring-white transition-all cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              >
+                <option value="all">Show All</option>
+                <option value="won">Winners Only</option>
+              </select>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-500">
+                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {filteredAuctions.map((auction) => (
+              <div key={auction.id} className="group bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ease-out overflow-hidden flex flex-row h-48">
+                {/* Left: Image Section */}
+                <div className="relative w-48 h-full shrink-0 overflow-hidden">
+                  <Image
+                    src={auction.image}
+                    alt={auction.title}
+                    fill
+                    className="object-cover"
+                  />
+                  {/* Overlay Gradient for text readability on image if needed, or just clean image */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/10 to-transparent" />
+                  
+                  {/* Big Number Overlay on Image */}
+                  <div className="absolute top-4 left-4">
+                     <span className="text-4xl font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] tracking-tighter">{auction.number}</span>
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium mb-2">{auction}</h3>
-                <p className="text-sm text-zinc-500 mb-6">Get help regarding {auction.toLowerCase()}.</p>
-                <button
-                  onClick={() => handleAuctionSelect(auction)}
-                  className="w-full py-3 bg-black hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 dark:text-black text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Phone size={18} />
-                  Contact Support
-                </button>
+
+                {/* Right: Content Section */}
+                <div className="flex-1 p-5 flex flex-col justify-between">
+                   <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{auction.title}</h3>
+                        </div>
+                        <p className="text-sm text-zinc-500 line-clamp-2">
+                            Auction regarding {auction.title.toLowerCase()} items. Click below to get support.
+                        </p>
+                      </div>
+                      
+                      <span className={`shrink-0 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                          auction.status === 'won' 
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {auction.status}
+                      </span>
+                   </div>
+
+                   <div className="pt-4">
+                      <button
+                        onClick={() => handleAuctionSelect(auction.title)}
+                        className="w-full py-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-black rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Phone size={16} />
+                        Contact Support
+                      </button>
+                   </div>
+                </div>
               </div>
             ))}
           </div>
