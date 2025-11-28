@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import VideoCall from "../components/VideoCall";
 import { Video, Clock } from "lucide-react";
+import Image from "next/image";
 
 type User = {
   id: string; // socket id
@@ -59,19 +60,33 @@ function AdminContent() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-8">
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Support Dashboard</h1>
-            <p className="text-zinc-500 mt-1">Auction: <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">{auction}</span></p>
-          </div>
-          <div className="bg-white dark:bg-zinc-900 px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <span className="text-sm text-zinc-500">Status: </span>
-            <span className="text-sm font-medium text-green-600 dark:text-green-400">Online</span>
-          </div>
-        </header>
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col">
+      <header className="w-full p-6 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-40">
+         <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3">
+              <Image 
+                src="https://www.veilingrheinmaas.com/typo3conf/ext/site_template/Resources/Public/Img/logo.png" 
+                alt="Logo" 
+                width={0} 
+                height={0}
+                sizes="100vw"
+                className="w-auto h-8 rounded-lg"
+              />
+              <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Support Dashboard</h1>
+            </div>
+            <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800"></div>
+            <p className="text-sm text-zinc-500">Auction: <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">{auction}</span></p>
+        </div>
 
+        <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/50">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                <span className="text-xs font-medium text-green-700 dark:text-green-400">Online</span>
+            </div>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto w-full p-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Queue List */}
           <div className="lg:col-span-1 space-y-4">
@@ -119,35 +134,32 @@ function AdminContent() {
                     <>
                         <Video size={48} className="mb-4 opacity-20" />
                         <p>Select a user from the queue to start a call</p>
-                        {/* We render a hidden VideoCall just to generate Admin ID and be ready */}
-                        <div className="hidden">
-                            <VideoCall 
-                                mode="embedded" 
-                                onPeerId={setAdminPeerId}
-                            />
-                        </div>
                     </>
                 )}
              </div>
           </div>
         </div>
 
-        {/* Full Screen Overlay for Active Call */}
-        {activeCallUser && (
-          <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 md:p-8">
+        {/* Full Screen Overlay for Active Call - Single VideoCall Instance */}
+        <div className={activeCallUser 
+            ? "fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 md:p-8" 
+            : "fixed top-0 left-0 w-0 h-0 overflow-hidden opacity-0 pointer-events-none"
+        }>
             <div className="w-full max-w-5xl h-full max-h-[80vh] relative bg-black rounded-2xl overflow-hidden shadow-2xl border border-zinc-800">
-              <div className="absolute top-4 left-4 z-10 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                <p className="text-white text-sm">Speaking with <span className="font-mono text-zinc-400">{activeCallUser.peerId?.substring(0, 8)}...</span></p>
-              </div>
+              {activeCallUser && (
+                <div className="absolute top-4 left-4 z-10 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                    <p className="text-white text-sm">Speaking with <span className="font-mono text-zinc-400">{activeCallUser.peerId?.substring(0, 8)}...</span></p>
+                </div>
+              )}
               <VideoCall 
                 mode="embedded"
-                remotePeerId={activeCallUser.peerId}
-                autoStart={true}
+                onPeerId={setAdminPeerId}
+                remotePeerId={activeCallUser?.peerId}
+                autoStart={!!activeCallUser}
                 onEnd={handleCallEnd}
               />
             </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

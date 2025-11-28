@@ -113,6 +113,11 @@ export default function VideoCall({
 
   // Handle auto-start
   useEffect(() => {
+    if (!remotePeerId) {
+        hasAutoStarted.current = false;
+        return;
+    }
+
     if (autoStart && remotePeerId && peerId && localStreamRef.current && !hasAutoStarted.current) {
       hasAutoStarted.current = true;
       startCall(remotePeerId);

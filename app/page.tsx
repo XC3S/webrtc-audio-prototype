@@ -142,7 +142,7 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {filteredAuctions.map((auction) => (
-              <div key={auction.id} className="group bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ease-out overflow-hidden flex flex-row h-48">
+              <div key={auction.id} className="group bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ease-out overflow-hidden flex flex-row h-48">
                 {/* Left: Image Section */}
                 <div className="relative w-48 h-full shrink-0 overflow-hidden">
                   <Image
