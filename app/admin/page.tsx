@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import VideoCall from "../components/VideoCall";
 import { Video, Clock } from "lucide-react";
@@ -14,9 +14,16 @@ type User = {
   joinedAt: number;
 };
 
+
+const AUCTION_OPTIONS = [
+  "Clock 1", "Clock 2", "Clock 3", "Clock 4",
+  "Clock 5", "Clock 6", "Clock 7", "Clock 8"
+];
+
 function AdminContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const auction = searchParams.get("auction") || "default";
+  const auction = searchParams.get("auction");
   
   const [socket, setSocket] = useState<Socket | null>(null);
   const [queue, setQueue] = useState<User[]>([]);
@@ -24,6 +31,14 @@ function AdminContent() {
   const [adminPeerId, setAdminPeerId] = useState<string>("");
 
   useEffect(() => {
+    if (!auction) {
+      router.replace("/admin?auction=Clock 1");
+    }
+  }, [auction, router]);
+
+  useEffect(() => {
+    if (!auction) return;
+
     const socketInstance = io();
     
     socketInstance.on("connect", () => {
@@ -75,7 +90,19 @@ function AdminContent() {
               <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Support Dashboard</h1>
             </div>
             <div className="h-6 w-px bg-zinc-200 dark:bg-zinc-800"></div>
-            <p className="text-sm text-zinc-500">Auction: <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">{auction}</span></p>
+            <div className="flex items-center gap-2">
+              <label htmlFor="auction-select" className="text-sm text-zinc-500">Auction:</label>
+              <select
+                id="auction-select"
+                value={auction || "Clock 1"}
+                onChange={(e) => router.push(`/admin?auction=${e.target.value}`)}
+                className="bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-1.5 font-medium"
+              >
+                {AUCTION_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
         </div>
 
         <div className="flex items-center gap-3">
