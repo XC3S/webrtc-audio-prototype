@@ -23,6 +23,55 @@ const waitingUsers: User[] = [];
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => {
     const parsedUrl = parse(req.url!, true);
+    const { pathname } = parsedUrl;
+
+    if (pathname === '/api/turn-credentials') {
+      const username = process.env.TURN_USERNAME;
+      const credential = process.env.TURN_CREDENTIAL;
+
+      if (!username || !credential) {
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ 
+          iceServers: [
+            { urls: "stun:stun.l.google.com:19302" } // Fallback to Google STUN
+          ] 
+        }));
+        return;
+      }
+
+      const iceServers = [
+        {
+          urls: "stun:stun.relay.metered.ca:80",
+        },
+        {
+          urls: "turn:global.relay.metered.ca:80",
+          username: username,
+          credential: credential,
+        },
+        {
+          urls: "turn:global.relay.metered.ca:80?transport=tcp",
+          username: username,
+          credential: credential,
+        },
+        {
+          urls: "turn:global.relay.metered.ca:443",
+          username: username,
+          credential: credential,
+        },
+        {
+          urls: "turns:global.relay.metered.ca:443?transport=tcp",
+          username: username,
+          credential: credential,
+        },
+      ];
+
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ iceServers }));
+      return;
+    }
+
     handle(req, res, parsedUrl);
   });
 
